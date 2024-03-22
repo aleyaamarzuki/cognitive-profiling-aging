@@ -1,0 +1,1099 @@
+library(tidyverse)
+library(psych)
+library(openxlsx)
+library(dplyr)
+library(conflicted)
+library(FactoMineR)
+library(factoextra)
+library(missMDA) # for conducting imputation of missing data
+library(glmnet)
+library(reshape)
+library(sjPlot)
+library(ggcorrplot)
+library(ggpubr)
+library(car)
+library(Hmisc)
+
+set.seed(123)
+
+# remove environment (optional)
+rm(list = ls())
+
+#### Read in survey data ####
+
+# read in .csv from directory
+MRI<-read.table("C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/clean_survey.csv",header=TRUE,sep=",")
+
+##### Imputation #####
+MRI_EFA <- MRI %>%
+  dplyr::select("Education", "Ladder", "CESDsum", "STAIsum", "EWsum", "SleepHours", "SleepQuality", 
+                "SocialActivity", "FoodIntake", "FISum", "Late_PhysicalDays","Mid_PhysicalDays",
+                "English", "Young_PhysicalDays",
+                "No_SpokenLanguage", "Occupation_Code", 
+                "GovSupport", "GeneralHealth", "BloodPressure", "Cholesterol", 
+                "Diabetes", "Late_BookNo", "Mid_BookNo", "Young_BookNo", "Internet_Frequency",
+                "Late_News", "Late_Radio", "Late_Video", "Late_Books", "Late_Games", "Late_Live", 
+                "Late_Movies", "Late_ArtClass", "Late_HobbyClass",
+                "SWLS_Sum", "Crowding",
+                "Mid_BookNo", "Mid_News", "Mid_Radio", "Mid_Books", 
+                "Mid_Games", "Mid_Live", "Mid_Movies", "Mid_ArtClass", 
+                "Mid_HobbyClass", 
+                "Young_BookNo", "Young_News", "Young_Radio",
+                "Young_Books", "Young_Games", "Young_Live", "Young_Movies", "Young_ArtClass", 
+                "Young_HobbyClass",
+                "SWLS_Sum", "Crowding",
+                "LateAdulthood_HousingType","VerbalFluency",
+                "Adulthood_PerceivedSES_one", "Adulthood_PerceivedSES_two", 
+                "Childhood_PerceivedSES_one", "Childhood_PerceivedSES_two") 
+
+MRI_EFA<-subset(MRI, select = -c(ParticipantID))
+
+res.imput<-imputeFAMD(MRI_EFA, ncp=5) #conducts imputation
+
+MRI_EFA_complete<-res.imput$completeObs
+
+# get only number for some columns 
+
+# convert to character first
+MRI_EFA_complete<-MRI_EFA_complete %>% mutate_at(c("Education","SleepQuality" ,"Ladder",
+                                                   'Internet_Frequency', "SocialActivity",
+                                                   "FoodIntake",
+                                                   'Late_PhysicalDays', "English", 'Mid_PhysicalDays','Young_PhysicalDays',
+                                                   'Occupation_Code', "GovSupport",
+                                                   "GeneralHealth", "BloodPressure",
+                                                   "Cholesterol", "Diabetes", "Late_BookNo",  "Mid_BookNo", "Young_BookNo",
+                                                   "Internet_Frequency", "LateAdulthood_HousingType", "VerbalFluency",
+                                                   "Late_News", "Late_Radio", "Late_Video", "Late_Books", "Late_Games", "Late_Live", 
+                                                   "Late_Movies", "Late_ArtClass", "Late_HobbyClass",
+                                                   "Mid_BookNo", "Mid_News", "Mid_Radio", "Mid_Books", 
+                                                   "Mid_Games", "Mid_Live", "Mid_Movies", "Mid_ArtClass", 
+                                                   "Mid_HobbyClass", 
+                                                   "Young_BookNo", "Young_News", "Young_Radio",
+                                                   "Young_Books", "Young_Games", "Young_Live", "Young_Movies", "Young_ArtClass", 
+                                                   "Young_HobbyClass","Adulthood_PerceivedSES_one", "Adulthood_PerceivedSES_two", "Childhood_PerceivedSES_one", "Childhood_PerceivedSES_two"), as.character)
+
+#parse number
+MRI_EFA_complete<-MRI_EFA_complete %>% mutate_at(c("Education","SleepQuality" ,"Ladder",
+                                                   'Internet_Frequency', "SocialActivity",
+                                                   "FoodIntake",
+                                                   'Late_PhysicalDays', "English",'Mid_PhysicalDays','Young_PhysicalDays',
+                                                   'Occupation_Code', "GovSupport",
+                                                   "GeneralHealth", "BloodPressure",
+                                                   "Cholesterol", "Diabetes", "Late_BookNo",  "Mid_BookNo", "Young_BookNo",
+                                                   "Internet_Frequency",
+                                                  "LateAdulthood_HousingType", "VerbalFluency",
+                                                   "Late_News", "Late_Radio", "Late_Video", "Late_Books", "Late_Games", "Late_Live", 
+                                                   "Late_Movies", "Late_ArtClass", "Late_HobbyClass",
+                                                   "Mid_BookNo", "Mid_News", "Mid_Radio", "Mid_Books", 
+                                                   "Mid_Games", "Mid_Live", "Mid_Movies", "Mid_ArtClass", 
+                                                   "Mid_HobbyClass", 
+                                                   "Young_BookNo", "Young_News", "Young_Radio",
+                                                   "Young_Books", "Young_Games", "Young_Live", "Young_Movies", "Young_ArtClass", 
+                                                   "Young_HobbyClass", "Adulthood_PerceivedSES_one", "Adulthood_PerceivedSES_two", "Childhood_PerceivedSES_one", "Childhood_PerceivedSES_two"), parse_number)
+
+# saving for ridge regression
+survey_complete<-MRI_EFA_complete
+
+set_theme(base = theme_bw())
+
+#### FA ####
+
+FA_survey<- sapply(survey_complete, as.numeric)
+
+FA_survey<-scale(FA_survey)
+
+library(psych)
+cortest.bartlett(FA_survey) # significant, can proceed
+KMO(FA_survey) #good range
+
+scree(FA_survey, pc=FALSE)  # 4 factors
+
+Nfacs <- 5  
+
+fit <- factanal(FA_survey, Nfacs, rotation="promax", scores = 'Bartlett')
+FAScores<-as.data.frame(fit$scores) #get scores per participant 
+
+colnames(FAScores)[1:5] <- c("Education_SES", "CognitiveStimulation", "Hobbies",
+                         "MentalHealth", "ChildSES")
+
+loads<-as.data.frame(unclass(fit$loadings))
+
+#cut-off for FA: https://imaging.mrc-cbu.cam.ac.uk/statswiki/FAQ/thresholds
+
+print(fit, digits=2, cutoff=0.3, sort=TRUE)
+
+# get variance 
+x <- loadings(fit)
+vx <- colSums(x^2)
+
+rbind(`SS loadings` = vx,
+      `Proportion Var` = vx/nrow(x),
+      `Cumulative Var` = cumsum(vx/nrow(x)))
+
+
+##### plot loadings #####
+
+# change row Names
+rownames(loads) <- c("Education.Level", "Perceived.Current.SES", "Depression", "Anxiety",
+                     "Financial.Worries", "Sleep.Hours", "Sleep.Quality", "Social.Activity",
+                     "Food.Intake.Changes", "Food.Insecurity", "Physical.Activity.Late.Adult",
+                     "Physical.Activity.Mid.Adult", "English.Speaking", "Physical.Activity.Child",
+                     "Num.Spoken.Languages", "Occupational.Complexity", "Government.Support", "Health.Condition",
+                     "High.Blood.Pressure", "High.Cholesterol", "Diabetic", "Num.Books.Late.Adult",
+                     "Num.Books.Mid.Adult", "Num.Books.Child", "Internet.Usage.Frequency", "Read.News.Late.Adult",
+                     "Radio.Late.Adult", "Watch.Videos.Late.Adult", 'Read.Books.Late.Adult', "Play.Boardgames.Late.Adult",
+                     "Attend.Live.Shows.Late.Adult", "Watch.Movies.Late.Adult", "Attend.Art.Class.Late.Adult","Attend.Hobby.Class.Late.Adult",
+                     "Life.Satisfaction", "Crowding.Index",
+                     "Read.News.Mid.Adult","Radio.Mid.Adult", 'Read.Books.Mid.Adult', "Play.Boardgames.Mid.Adult",
+                     "Attend.Live.Shows.Mid.Adult", "Watch.Movies.Mid.Adult", "Attend.Art.Class.Mid.Adult",
+                     "Attend.Hobby.Class.Mid.Adult","Read.News.Child","Radio.Child", 'Read.Books.Child', "Play.Boardgames.Child",
+                     "Attend.Live.Shows.Child", "Watch.Movies.Child", "Attend.Art.Class.Child",
+                     "Attend.Hobby.Class.Child","Current.Housing.Type", "Verbal.Fluency", "Perceived.Mid.Adult.SES1", "Perceived.Mid.Adult.SES2",
+                     "Perceived.Child.SES1", "Perceived.Child.SES2")
+
+loads$Variables <- row.names(loads) # convert row names to a column
+
+
+
+colnames(loads)[1:5] <- c("F1:SES & Cognitive Reserve",
+                          "F2:Cognitive & Physical Stimulation",
+                          "F3:Hobbies",
+                          "F4:Mental Health Symptoms",
+                          "F5:Childhood SES")
+
+   
+
+loadings.m <- melt(loads, id="Variables", 
+                   measure=c("F1:SES & Cognitive Reserve",
+                             "F2:Cognitive & Physical Stimulation",
+                             "F3:Hobbies",
+                             "F4:Mental Health Symptoms",
+                             "F5:Childhood SES"))
+
+colnames(loadings.m)[2]<-"Factor"
+colnames(loadings.m)[3]<-"Loading"
+
+
+fa_survey_plot<-ggplot(loadings.m, aes(Variables, abs(Loading), fill=Loading)) + 
+  facet_wrap(~ Factor, nrow=1) + #place the factors in separate facets
+  geom_bar(stat="identity") + #make the bars
+  coord_flip() + #flip the axes so the test names can be horizontal  
+  #define the fill color gradient: blue=positive, red=negative
+  scale_fill_gradient2(name = "Loading", 
+                       high = "blue", mid = "white", low = "red", 
+                       midpoint=0, guide="colourbar") +
+  ylab("Loading Strength") + #improve y-axis label
+  theme_bw(base_size=10)+
+  theme(axis.title.y=element_blank())
+  
+
+tiff(file="C:/Users/aleya/OneDrive/Documents/Tasks/plots/fa_survey_plot.tiff",width = 12, height = 8, units = "in", res = 300)
+fa_survey_plot
+dev.off()
+
+
+
+#### Read in cognitive and brain data ####
+#wcst data
+WCST_data<-read.csv('C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/forWCSTMRIAnalysis.csv', header=TRUE,sep=",")
+WCST_data <- subset(WCST_data, select =  c( subject_id, correct, persev_err, non_persev_err,
+                                           unique_error, trials_to_complete_cat1,
+                                           cat_completed, r, p, d, f, PC1, PC2, PC3, PC4, MRI, GenderScore,
+                                           Age, Ethnicity))
+#gng data
+GNG_data<-read.csv('C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/forGnGMRIAnalysis.csv', header=TRUE,sep=",")
+GNG_data <- subset(GNG_data, select =  c(subject_id, go_errors,
+                                         no_go_errors, go_rt, no_go_rt, a, v, t, z,
+                                         v.0., v.1., PC1, PC2, PC3, MRI, GenderScore,
+                                         Age, Ethnicity))
+
+#brain age
+brainAge<-read.csv('C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/brainAge.csv', header=TRUE,sep=",")
+colnames(brainAge)[1] <- c("subject_id")
+brainAge <- subset(brainAge, select =  c(subject_id, brain.predicted_age))
+
+#globals
+#grey and white matter volume
+gm<-read.csv('C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/MRI_globals.csv', header=TRUE,sep=",")
+gm <- subset(gm, select =  c(subject_id, GreyMatter, WhiteMatter))
+
+brainvars<- merge (brainAge, gm, by = 'subject_id')
+
+#wcst
+brainvars_matching_wcst <-semi_join(brainvars,WCST_data, by=("subject_id"))
+
+WCST_brain<- merge (brainvars_matching_wcst, WCST_data, by = 'subject_id')
+
+# to get a measure of how much the brain has aged compared to actual age
+# the higher the worse the deterioration
+WCST_brain$predMinusActual <- WCST_brain$brain.predicted_age - WCST_brain$Age
+
+#gng
+brainvars_matching_gng <-semi_join(brainvars,GNG_data, by=("subject_id"))
+
+GNG_brain<- merge (brainvars_matching_gng, GNG_data, by = 'subject_id')
+
+GNG_brain$predMinusActual <- GNG_brain$brain.predicted_age - GNG_brain$Age
+
+#survey variables with completed cases 
+#add back IDs
+survey_complete$subject_id <- MRI$ParticipantID
+FAScores$subject_id<-MRI$ParticipantID
+
+
+# gng with survey 
+survey_matching_gng <-semi_join(survey_complete,GNG_brain, 
+                                by=("subject_id"))
+
+gng_matching_survey <-semi_join(GNG_brain,survey_complete, by=("subject_id"))
+
+GNG_survey<- merge(gng_matching_survey,survey_matching_gng, by = 'subject_id')
+GNG_survey<-merge(GNG_survey, FAScores, by = 'subject_id')
+
+# wcst with survey
+survey_matching_wcst <-semi_join(survey_complete,WCST_brain, 
+                                by=("subject_id"))
+
+wcst_matching_survey <-semi_join(WCST_brain,survey_complete, 
+                                 by=("subject_id"))
+
+wcst_survey<- merge(wcst_matching_survey,survey_matching_wcst, 
+                              by = 'subject_id')
+
+wcst_survey<-merge(wcst_survey, FAScores, by = 'subject_id')
+
+#### Linear regs between demographic variables and profiles ####
+
+#dummy coding for ethnicity
+# Load the library
+library(fastDummies)
+
+# Create dummy variable
+all_gng <- dummy_cols(GNG_survey, 
+                   select_columns = "Ethnicity")
+
+all_wcst <- dummy_cols(wcst_survey, 
+                      select_columns = "Ethnicity")
+
+# gng
+
+dvList<-c("PC1", "PC2", "PC3", "v", "v.0.", "v.1.","a","t","z")
+
+gng_lm_models_demo <- list()
+gng_html_model_demo<- list()
+
+
+for (m in 1:length(dvList)) {
+  
+  model<-lm(as.formula(paste(dvList[[m]],"~ LateAdulthood_HousingType + GenderScore + Age + Ethnicity_Chinese + Ethnicity_Malay + Ethnicity_Indian")), data=all_gng)
+  
+  gng_lm_models_demo[[m]]<-model
+  
+  gng_html_model_demo[[m]]<-tab_model(model, show.se = TRUE)
+  
+  
+}
+
+#wcst
+
+dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
+
+wcst_lm_models_demo <- list()
+wcst_html_model_demo<- list()
+
+
+for (m in 1:length(dvList)) {
+  
+  model<-lm(as.formula(paste(dvList[[m]],"~ LateAdulthood_HousingType + GenderScore + Age + Ethnicity_Chinese + Ethnicity_Malay + Ethnicity_Indian")), data=all_wcst)
+  
+  wcst_lm_models_demo[[m]]<-model
+  
+  wcst_html_model_demo[[m]]<-tab_model(model, show.se = TRUE)
+  
+  
+}
+
+#### Corrected p-values for demographics ####
+
+IVWCSTPC_pvals<-list()
+IVWCSTparams_pvals<-list()
+IVGNGPC_pvals<-list()
+IVGNGparams_pvals<-list()
+
+for (m in 1:7) {
+  IVWCSTPC_pvals[[m]]<-c(summary(wcst_lm_models_demo[[1]])$coefficients[m,4],
+                         summary(wcst_lm_models_demo[[2]])$coefficients[m,4],
+                         summary(wcst_lm_models_demo[[3]])$coefficients[m,4],
+                         summary(wcst_lm_models_demo[[4]])$coefficients[m,4])
+  
+  IVWCSTparams_pvals[[m]]<-c(summary(wcst_lm_models_demo[[5]])$coefficients[m,4],
+                             summary(wcst_lm_models_demo[[6]])$coefficients[m,4],
+                             summary(wcst_lm_models_demo[[7]])$coefficients[m,4],
+                             summary(wcst_lm_models_demo[[8]])$coefficients[m,4])
+  
+  IVGNGPC_pvals[[m]]<-c(summary(gng_lm_models_demo[[1]])$coefficients[m,4],
+                        summary(gng_lm_models_demo[[2]])$coefficients[m,4],
+                        summary(gng_lm_models_demo[[3]])$coefficients[m,4])
+  
+  IVGNGparams_pvals[[m]]<-c(summary(gng_lm_models_demo[[4]])$coefficients[m,4],
+                            summary(gng_lm_models_demo[[5]])$coefficients[m,4],
+                            summary(gng_lm_models_demo[[6]])$coefficients[m,4],
+                            summary(gng_lm_models_demo[[7]])$coefficients[m,4],
+                            summary(gng_lm_models_demo[[8]])$coefficients[m,4],
+                            summary(gng_lm_models_demo[[9]])$coefficients[m,4])
+  
+  
+}
+
+# adjust p-values
+
+adj_p_wcst_PCs<-list()
+adj_p_wcst_params<-list()
+adj_p_gng_PCs<-list()
+adj_p_gng_params<-list()
+
+for (m in 1:7) {
+  
+  adj_p_wcst_PCs[[m]]<-p.adjust(IVWCSTPC_pvals[[m]], method="BH")
+  
+  adj_p_wcst_params[[m]]<-p.adjust(IVWCSTparams_pvals[[m]], method="BH")
+  
+  adj_p_gng_PCs[[m]]<-p.adjust(IVGNGPC_pvals[[m]], method="BH")
+  
+  adj_p_gng_params[[m]]<-p.adjust(IVGNGparams_pvals[[m]], method="BH")
+  
+}
+
+# order of p-values: intercept, house type, gender, age, chinese, malay, indian
+# order of gng params: "v", "v.0.", "v.1.","a","t","z"
+
+##### demographic figures ######
+
+#Age and PCs
+
+WCSTdata_long <- gather(all_wcst, PC, PCScore, PC1:PC4, factor_key=TRUE)
+GNGdata_long <- gather(all_gng, PC, PCScore, PC1:PC3, factor_key=TRUE)
+
+set_theme(base = theme_bw())
+
+age_gng<-ggplot(GNGdata_long, aes(x=Age, y=PCScore, group=PC, color = PC)) +
+  geom_smooth(method = lm)+
+  xlab("Age") + ylab("PC Score") + ggtitle("i. GnG Profiles by Age")+ labs(color=NULL)
+
+age_wcst<-ggplot(WCSTdata_long, aes(x=Age, y=PCScore, group=PC, color = PC)) +
+  geom_smooth(method = lm)+
+  xlab("Age") + ylab("PC Score") + ggtitle("ii. WCST Profiles by Age")+  labs(color=NULL)
+
+age_plot<-ggarrange(age_gng, age_wcst, nrow = 2, ncol = 1)
+
+
+# bar plot of profiles by late adult housing
+
+#gng
+
+housing_gng<-ggbarplot(GNGdata_long, x ="LateAdulthood_HousingType", y = "PCScore", color = "PC",
+          add = c("mean_se"), position = position_dodge())
+
+housing_gng<-housing_gng + scale_x_discrete(labels=c('Middle-to-High Cost', 'Low Cost')) + 
+  ylab ("PC Score") + ggtitle ("iii. GnG Profiles by Housing Type")+
+  theme(
+    axis.title.x = element_blank()
+  )
+
+
+#wcst
+
+housing_wcst<-ggbarplot(WCSTdata_long, x ="LateAdulthood_HousingType", y = "PCScore", color = "PC",
+                       add = c("mean_se"), position = position_dodge())
+
+housing_wcst<-housing_wcst + scale_x_discrete(labels=c('Middle-to-High Cost', 'Low Cost')) + 
+  ylab ("PC Score") + ggtitle ("iv. WCST Profiles by Housing Type")+
+  theme(
+    axis.title.x = element_blank()
+  )
+
+
+housing_plot<-ggarrange(housing_gng, housing_wcst, nrow = 2, ncol = 1)
+
+demo_plot<-ggarrange(age_plot, housing_plot)
+
+
+tiff(file="C:/Users/aleya/OneDrive/Documents/Tasks/plots/demog_plot.tiff",width = 12, height = 10, units = "in", res = 300)
+demo_plot
+dev.off()
+
+#Age and parameters
+WCSTdata_long <- gather(all_wcst, parameter, ParamScore, r:f, factor_key=TRUE)
+GNGdata_long <- gather(all_gng, parameter, ParamScore, a:v.1., factor_key=TRUE)
+
+set_theme(base = theme_bw())
+
+age_gng<-ggplot(GNGdata_long, aes(x=Age, y=ParamScore, group=parameter, color = parameter)) +
+  geom_smooth(method = lm)+
+  xlab("Age") + ylab("Parameter Value") + ggtitle("i. GnG Parameters by Age")+ labs(color=NULL)
+
+age_wcst<-ggplot(WCSTdata_long, aes(x=Age, y=ParamScore, group=parameter, color = parameter)) +
+  geom_smooth(method = lm)+
+  xlab("Age") + ylab("Parameter Value") + ggtitle("ii. WCST Parameters by Age")+  labs(color=NULL)
+
+age_plot<-ggarrange(age_gng, age_wcst, nrow = 2, ncol = 1)
+
+
+#### Linear Regs for profiles and survey FA variables ####
+
+##### GnG #####
+
+dvList<-c("PC1", "PC2", "PC3", "v", "v.0.", "v.1.","a","t","z")
+
+# convert ethnicity to numeric to regress this out
+GNG_survey$Ethnicity<-as.numeric(as.factor
+                                           (GNG_survey$Ethnicity))
+
+# scale other variables 
+GNG_survey[c("GenderScore", "Age", "Ethnicity",
+                       "predMinusActual", "GreyMatter", 
+                       "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                       "ChildSES")]<- 
+  lapply(GNG_survey[c("GenderScore", "Age", "Ethnicity", 
+                              "predMinusActual", "GreyMatter", 
+                              "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                              "ChildSES")], scale)
+
+
+gng_lm_models <- list()
+gng_html_model <- list()
+gng_vif_list<-list()
+
+for (m in 1:length(dvList)) {
+  
+model<-lm(as.formula(paste(dvList[[m]],"~ GenderScore + Age + Ethnicity + predMinusActual+ GreyMatter + Education_SES + CognitiveStimulation + Hobbies + MentalHealth + ChildSES")), data=GNG_survey)
+
+gng_lm_models[[m]]<-model
+
+gng_html_model[[m]]<-tab_model(model, show.se = TRUE,
+                               pred.labels = c("(Intercept)", 
+                                               "Gender", "Age",
+                                               "Ethnicity","BrainAge - ActualAge", 
+                                               "GMV", 
+                                               "F1:SES & Cognitive Reserve",
+                                               "F2:Cognitive & Physical Stimulation",
+                                               "F3:Hobbies",
+                                               "F4:Mental Health Symptoms",
+                                               "F5:Childhood SES"))
+
+gng_vif_list[[m]]<-vif(gng_lm_models[[m]])
+
+}
+
+set_theme(base = theme_bw())
+
+#### plot regression results #####
+dvList<-c("PC1: Well-Performing", "PC2: Slow Responding", 
+          "PC3: Random Responding","v", "v.0.", "v.1.","a","t","z")
+
+pc_reg_gng<-list()
+
+for (j in 1:length(dvList)) {
+gng_lm<-plot_model(gng_lm_models[[j]], title = dvList[[j]], rm.terms = c("GenderScore", "Age", "Ethnicity"),
+           show.values = TRUE, show.p = FALSE, value.offset = .3)+ 
+  scale_x_discrete(labels=c("F5:Childhood SES","F4:Mental Health Symptoms","F3:Hobbies","F2:Cognitive & Physical Stimulation",
+                            "F1:SES & Cognitive Reserve",
+                            "GMV", "BrainAge - ActualAge"))
+
+
+
+pc_reg_gng[[j]]<-annotate_figure(gng_lm, top = text_grob("GLM", 
+                                                color = "black", face = "bold", size = 14)) 
+}
+
+
+##### WCST #####
+
+dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
+
+# convert ethnicity to numeric to regress this out
+wcst_survey$Ethnicity<-as.numeric(as.factor
+                                           (wcst_survey$Ethnicity))
+
+
+# scale other variables 
+wcst_survey[c("GenderScore", "Age",
+                        "predMinusActual", "GreyMatter", "Ethnicity",
+                        "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                        "ChildSES")]<- 
+  lapply(wcst_survey[c("GenderScore", "Age",
+                                 "predMinusActual", "GreyMatter", "Ethnicity",
+                                 "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                                 "ChildSES")], scale)
+
+wcst_lm_models <- list()
+wcst_html_model <- list()
+wcst_vif_list<-list()
+
+for (m in 1:length(dvList)) {
+  
+  model<-lm(as.formula(paste(dvList[[m]],"~ GenderScore + Age + Ethnicity + predMinusActual+ GreyMatter + Education_SES + CognitiveStimulation + Hobbies +MentalHealth + ChildSES")), data=wcst_survey)
+  
+  wcst_lm_models[[m]]<-model
+  
+  wcst_html_model[[m]]<-tab_model(model, show.se = TRUE,
+                                   pred.labels = c("(Intercept)", 
+                                                   "Gender", "Age",
+                                                   "Ethnicity","BrainAge - ActualAge", 
+                                                   "GMV", "F1:SES & Cognitive Reserve",
+                                                   "F2:Cognitive & Physical Stimulation",
+                                                   "F3:Hobbies",
+                                                   "F4:Mental Health Symptoms",
+                                                   "F5:Childhood SES"))
+  # variance inflation factor to test for multi-collinearity
+  wcst_vif_list[[m]]<-vif(wcst_lm_models[[m]])
+  
+}
+
+#### plot regression results #####
+
+set_theme(base = theme_bw())
+
+dvList<-c("PC1: Well-Performing", "PC2: Perseverative", "PC3: Poor Performing + Rigid Focusing", 
+          "PC4: Slow Initial Learning", "r", "p", "d", "f")
+
+pc_reg_wcst<-list()
+
+for (j in 1:length(dvList)) {
+  wcst_lm<-plot_model(wcst_lm_models[[j]], title = dvList[[j]], rm.terms = c("GenderScore", "Age", "Ethnicity"),
+                              show.values = TRUE, show.p = FALSE, value.offset = .3)+ 
+    scale_x_discrete(labels=c("F5:Childhood SES","F4:Mental Health Symptoms","F3:Hobbies","F2:Cognitive & Physical Stimulation",
+                              "F1:SES & Cognitive Reserve",
+                              "GMV", "BrainAge - ActualAge"))
+  
+  pc_reg_wcst[[j]]<-annotate_figure(wcst_lm, top = text_grob("GLM", 
+                                                           color = "black", face = "bold", size = 14)) 
+}
+
+
+ggarrange(pc_reg_wcst[[1]], pc_reg_wcst[[2]], pc_reg_wcst[[3]], pc_reg_wcst[[4]])
+
+
+#### Correlations between FA predictor variables ####
+gng_forCorr<- GNG_survey%>%
+  dplyr::select("GenderScore", "Age",
+                "predMinusActual", "GreyMatter", 
+                "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                "ChildSES")
+
+corr <- round(cor(gng_forCorr), 1)
+p.mat <- cor_pmat(gng_forCorr)
+
+ggcorrplot(corr, p.mat = p.mat, hc.order = TRUE,
+           type = "lower", insig = "blank")
+
+
+wcst_forCorr<- wcst_survey%>%
+  dplyr::select("GenderScore", "Age",
+                "predMinusActual", "GreyMatter", 
+                "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                "ChildSES")
+
+corr <- round(cor(wcst_forCorr), 1)
+p.mat <- cor_pmat(wcst_forCorr)
+
+ggcorrplot(corr, p.mat = p.mat, hc.order = TRUE,
+           type = "lower", insig = "blank")
+
+#### Corrected p-values ####
+IVWCSTPC_pvals<-list()
+IVWCSTparams_pvals<-list()
+IVGNGPC_pvals<-list()
+IVGNGparams_pvals<-list()
+
+for (m in 1:7) {
+  IVWCSTPC_pvals[[m]]<-c(summary(wcst_lm_models[[1]])$coefficients[m+4,4],
+                    summary(wcst_lm_models[[2]])$coefficients[m+4,4],
+                    summary(wcst_lm_models[[3]])$coefficients[m+4,4],
+                    summary(wcst_lm_models[[4]])$coefficients[m+4,4])
+  
+  IVWCSTparams_pvals[[m]]<-c(summary(wcst_lm_models[[5]])$coefficients[m+4,4],
+                    summary(wcst_lm_models[[6]])$coefficients[m+4,4],
+                    summary(wcst_lm_models[[7]])$coefficients[m+4,4],
+                    summary(wcst_lm_models[[8]])$coefficients[m+4,4])
+  
+  IVGNGPC_pvals[[m]]<-c(summary(gng_lm_models[[1]])$coefficients[m+4,4],
+                         summary(gng_lm_models[[2]])$coefficients[m+4,4],
+                         summary(gng_lm_models[[3]])$coefficients[m+4,4])
+  
+  IVGNGparams_pvals[[m]]<-c(summary(gng_lm_models[[4]])$coefficients[m+4,4],
+                             summary(gng_lm_models[[5]])$coefficients[m+4,4],
+                             summary(gng_lm_models[[6]])$coefficients[m+4,4],
+                             summary(gng_lm_models[[7]])$coefficients[m+4,4],
+                             summary(gng_lm_models[[8]])$coefficients[m+4,4],
+                            summary(gng_lm_models[[9]])$coefficients[m+4,4])
+  
+  
+}
+
+# adjust p-values
+
+adj_p_wcst_PCs<-list()
+adj_p_wcst_params<-list()
+adj_p_gng_PCs<-list()
+adj_p_gng_params<-list()
+
+for (m in 1:7) {
+  
+adj_p_wcst_PCs[[m]]<-p.adjust(IVWCSTPC_pvals[[m]], method="BH")
+
+adj_p_wcst_params[[m]]<-p.adjust(IVWCSTparams_pvals[[m]], method="BH")
+
+adj_p_gng_PCs[[m]]<-p.adjust(IVGNGPC_pvals[[m]], method="BH")
+
+adj_p_gng_params[[m]]<-p.adjust( IVGNGparams_pvals[[m]], method="BH")
+  
+}
+
+# order of IVs in lists: predMinusActual, GMV, F1, F2, F3, F4
+
+
+# the factors show moderately strong correlations between each other 
+#and with other IVs suggesting ridge regression is appropriate
+
+#### Ridge Regression for profiles and survey FA variables ####
+
+##### GnG #####
+dvList<-c("PC1", "PC2", "PC3", "v", "v.0.", "v.1.","a","t","z")
+
+GnG_mseridge <- list()
+GnG_rsquared<- list()
+GNG_ridge_models <- list()
+
+for (m in 1:length(dvList)) {
+  
+  firstcol = which(colnames(GNG_survey)=="Education_SES")
+  lastcol = which(colnames(GNG_survey)=="ChildSES")
+  gender =which(colnames(GNG_survey)=="GenderScore")
+  Age = which(colnames(GNG_survey)=="Age")
+  Ethnicity<- which(colnames(GNG_survey)=="Ethnicity")
+  brainAge = which(colnames(GNG_survey)=="predMinusActual")
+  gmv = which(colnames(GNG_survey)=="GreyMatter")
+  
+  pred<-GNG_survey[c(gender, Age, Ethnicity,brainAge,gmv,firstcol:lastcol)]
+  
+  pred<- sapply(pred, as.numeric)
+  
+  pred<-scale(pred)
+  
+  train_rows <- sample(1:nrow(GNG_survey), .7*nrow(GNG_survey), replace = F)
+  
+  
+  dv <- GNG_survey[[dvList[[m]]]]
+  #dv <- GNG_survey$PC2
+  
+  pred.train <- pred[train_rows,]
+  dv.train <- dv[train_rows]
+  
+  pred.test <- pred[-train_rows,]
+  dv.test <- dv[-train_rows]
+  
+  ridge <- cv.glmnet(x=pred.train, y=dv.train, type.measure="mse", 
+                     alpha=0, family="gaussian", nlambda=200)
+  
+  ridge.predicted <- predict(ridge, ridge$lambda.1se, new=pred.test)
+  mean_sq<-mean((dv.test - ridge.predicted)^2)
+  #calculate r-square
+  rsq <- cor(dv.test, ridge.predicted)^2
+  
+  
+  GnG_mseridge[[m]] <- mean_sq
+  
+  GnG_rsquared[[m]] <- rsq
+  GNG_ridge_models[[m]]<-ridge
+  
+}
+
+# to look at coefs per model
+predict(GNG_ridge_models[[1]], type = "coef")
+
+# for plotting
+
+gng_forPlotting<-list()
+
+for (k in 1:length(dvList)) {
+
+  # Get coefs corresponding to best alpha
+  model_coefs <- predict(GNG_ridge_models[[k]], type = "coef")
+  
+  # store coefficients
+  sig_coefs<-summary(model_coefs)
+  
+  # get corresponding names of predictors
+  col_num<-sig_coefs$i 
+  
+  new_char<- "Intercept" #account for intercept
+  
+  column_names<-colnames(pred)
+  
+  new_colnames <- c(new_char, column_names[1:(length(column_names) - 1)], 
+                    column_names[length(column_names)])
+  
+  sig_column_names <- new_colnames[col_num]
+  
+  sig_coefs$colName<-sig_column_names
+  
+  gng_forPlotting[[k]] <- sig_coefs
+  
+}
+
+# plots of ridge results
+set_theme(base = theme_bw())
+
+gng_ridgePlots<-list()
+
+for (k in 1:length(dvList)) {
+
+gng_plot <- gng_forPlotting[[k]] %>%
+  mutate(pos = x >= 0)
+
+# change row variables to be able to index based on colour
+gng_plot$pos[gng_plot$pos == FALSE] = 'neg'
+gng_plot$pos[gng_plot$pos == TRUE] = 'pos'
+
+#remove covariates and preserve order
+gng_plot <- gng_plot[-(1:4),]
+gng_plot$colName <- factor(gng_plot$colName, levels = gng_plot$colName)
+
+gng_ridge<-ggplot(gng_plot,aes(colName,x, fill = pos))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90, size = 10))+
+  scale_fill_manual(values=c(neg="firebrick1",pos="steelblue"))+
+  scale_x_discrete(labels=c("BrainAge - ActualAge", "GMV" ,"F1:SES & Cognitive Reserve",
+                            "F2:Cognitive & Physical Stimulation",
+                            "F3:Hobbies",
+                            "F4:Mental Health Symptoms",
+                            "F5:Childhood SES"))+
+  theme(legend.position="none")+
+  ylim(-0.15, 0.1) + 
+  ylab("Coefficient") +
+  xlab("Predictor")
+
+gng_ridgePlots[[k]]<-annotate_figure(gng_ridge, top = text_grob("Ridge Regression", 
+                                                      color = "black", face = "bold", size = 14)) 
+
+}
+
+##### WCST #####
+
+# DVs
+dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
+
+wcst_mseridge <- list()
+wcst_rsquared<- list()
+wcst_ridge_models <- list()
+
+for (m in 1:length(dvList)) {
+  
+  firstcol = which(colnames(wcst_survey)=="Education_SES")
+  lastcol = which(colnames(wcst_survey)=="ChildSES")
+  gender =which(colnames(wcst_survey)=="GenderScore")
+  Age = which(colnames(wcst_survey)=="Age")
+  Ethnicity<- which(colnames(wcst_survey)=="Ethnicity")
+  brainAge = which(colnames(wcst_survey)=="predMinusActual")
+  gmv = which(colnames(wcst_survey)=="GreyMatter")
+  
+  pred<-wcst_survey[c(gender, Age, Ethnicity, brainAge, gmv,firstcol:lastcol)]
+  
+  pred<- sapply(pred, as.numeric)
+  
+  pred<-scale(pred)
+  
+  train_rows <- sample(1:nrow(wcst_survey), .7*nrow(wcst_survey), replace = F)
+  
+  
+  dv <- wcst_survey[[dvList[[m]]]]
+  #dv <- wcst_survey$PC2
+  
+  pred.train <- pred[train_rows,]
+  dv.train <- dv[train_rows]
+  
+  pred.test <- pred[-train_rows,]
+  dv.test <- dv[-train_rows]
+  
+  ridge <- cv.glmnet(x=pred.train, y=dv.train, type.measure="mse", 
+                     alpha=0, family="gaussian", nlambda=200)
+  
+  ridge.predicted <- predict(ridge, ridge$lambda.1se, new=pred.test)
+  mean_sq<-mean((dv.test - ridge.predicted)^2)
+  #calculate r-square
+  rsq <- cor(dv.test, ridge.predicted)^2
+  
+  
+  wcst_mseridge[[m]] <- mean_sq
+  
+  wcst_rsquared[[m]] <- rsq
+  wcst_ridge_models[[m]]<-ridge
+  
+}
+
+# to look at coefs per model
+predict(wcst_ridge_models[[1]], type = "coef")
+
+# for plotting
+
+wcst_forPlotting<-list()
+
+for (k in 1:length(dvList)) {
+  
+  # Get coefs corresponding to best alpha
+  model_coefs <- predict(wcst_ridge_models[[k]], type = "coef")
+  
+  # store coefficients
+  sig_coefs<-summary(model_coefs)
+  
+  # get corresponding names of predictors
+  col_num<-sig_coefs$i 
+  
+  new_char<- "Intercept" #account for intercept
+  
+  column_names<-colnames(pred)
+  
+  new_colnames <- c(new_char, column_names[1:(length(column_names) - 1)], 
+                    column_names[length(column_names)])
+  
+  sig_column_names <- new_colnames[col_num]
+  
+  sig_coefs$colName<-sig_column_names
+  
+  wcst_forPlotting[[k]] <- sig_coefs
+  
+}
+
+# plots of ridge results
+set_theme(base = theme_bw())
+
+wcst_ridgePlots<-list()
+
+for (k in 1:length(dvList)) {
+  
+  wcst_plot <- wcst_forPlotting[[k]] %>%
+    mutate(pos = x >= 0)
+  
+  # change row variables to be able to index based on colour
+  wcst_plot$pos[wcst_plot$pos == FALSE] = 'neg'
+  wcst_plot$pos[wcst_plot$pos == TRUE] = 'pos'
+  
+  #remove covariates and preserve order
+  wcst_plot <- wcst_plot[-(1:4),]
+  wcst_plot$colName <- factor(wcst_plot$colName, levels = wcst_plot$colName)
+  
+  wcst_ridge<-ggplot(wcst_plot,aes(colName,x, fill = pos))+
+    geom_bar(stat="identity")+
+    theme(axis.text.x = element_text(angle = 90, size = 10))+
+    scale_fill_manual(values=c(neg="firebrick1",pos="steelblue"))+
+    scale_x_discrete(labels=c("BrainAge - ActualAge", "GMV", "F1:SES & Cognitive Reserve",
+                              "F2:Cognitive & Physical Stimulation",
+                              "F3:Hobbies",
+                              "F4:Mental Health Symptoms",
+                              "F5:Childhood SES"))+
+    theme(legend.position="none")+
+    ylim(-0.6, 0.7) + 
+    ylab("Coefficient") +
+    xlab("Predictor")
+  
+  wcst_ridgePlots[[k]]<-annotate_figure(wcst_ridge, top = text_grob("Ridge Regression", 
+                                                                  color = "black", face = "bold", size = 14)) 
+}
+
+##### combining linear and ridge regression plots #####
+
+# GnG
+
+gng_plot_mixed<-list()
+
+dvList<-c("PC1", "PC2", "PC3", "v", "v.0.", "v.1.","a","t","z")
+
+for (k in 1:length(dvList)) {
+  gng_plot_first<-ggarrange (pc_reg_gng[[k]],
+                           gng_ridgePlots[[k]], ncol = 2, nrow = 1)
+  gng_plot_mixed[[k]]<- gng_plot_first + theme(panel.border = element_rect(color = "black", 
+                                                    fill = NA))
+}
+
+
+gng_regs_final<-ggarrange (gng_plot_mixed[[1]],
+                      gng_plot_mixed[[2]],
+                      gng_plot_mixed[[3]], ncol = 1, nrow = 3)
+
+gng_regs_final<-annotate_figure(gng_regs_final, top = text_grob("i.Go/No-Go Results", 
+                                      color = "black", size = 14))
+
+
+tiff(file="C:/Users/aleya/OneDrive/Documents/Tasks/plots/gng_regs.tiff",width = 11, height = 12, units = "in", res = 300)
+gng_regs_final
+dev.off()
+
+
+#WCST
+
+wcst_plot_mixed<-list()
+
+dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
+
+for (k in 1:length(dvList)) {
+  wcst_plot_first<-ggarrange (pc_reg_wcst[[k]],
+                             wcst_ridgePlots[[k]], ncol = 2, nrow = 1)
+  wcst_plot_mixed[[k]]<- wcst_plot_first + theme(panel.border = element_rect(color = "black", 
+                                                                           fill = NA))
+}
+
+
+wcst_regs_final<-ggarrange (wcst_plot_mixed[[1]],
+                           wcst_plot_mixed[[2]],
+                           wcst_plot_mixed[[3]],
+                           wcst_plot_mixed[[4]],
+                           ncol = 1, nrow = 4)
+
+wcst_regs_final<-annotate_figure(wcst_regs_final, top = text_grob("ii.WCST Results", 
+                                                                color = "black", size = 14))
+
+
+
+tiff(file="C:/Users/aleya/OneDrive/Documents/Tasks/plots/wcst_regs.tiff",width = 13, height = 15, units = "in", res = 300)
+wcst_regs_final
+dev.off()
+
+
+#### Correlations between PCs, params, and FAs, Brain ####
+
+forCorr_wcst = subset(wcst_survey, 
+                      select = c(Age, 
+                                 predMinusActual, GreyMatter, WhiteMatter,
+                                 Education_SES, CognitiveStimulation, Hobbies,
+                                 MentalHealth, 
+                                 ChildSES, PC1:PC4, r, p, d, f))
+
+correlations <- rcorr(as.matrix(forCorr_wcst), type=c("spearman"))
+sig_corr <- correlations$P<.05
+corr_all<-correlations$r
+corr_all<-corr_all[c("Age", 
+                     "predMinusActual", "GreyMatter", "WhiteMatter",
+                     "Education_SES", "CognitiveStimulation", "Hobbies",
+                     "MentalHealth", "ChildSES"), 
+                   c("PC1","PC2","PC3","PC4","r", "p", "d", "f", "predMinusActual")]
+corr_all_p<-correlations$P
+corr_all_p<-corr_all_p[c("Age", 
+                           "predMinusActual", "GreyMatter","WhiteMatter", 
+                           "Education_SES", "CognitiveStimulation", "Hobbies",
+                           "MentalHealth",  "ChildSES"), 
+                         c("PC1","PC2","PC3","PC4","r", 
+                           "p", "d", "f", "predMinusActual")]
+
+write.csv(corr_all, 'C:/Users/aleya/OneDrive/Documents/Tasks/plots/wcst_corr_reg.csv')
+
+forCorr_gng = subset(GNG_survey, 
+                      select = c(Age, 
+                                 predMinusActual, GreyMatter, WhiteMatter,
+                                 Education_SES, CognitiveStimulation, Hobbies,
+                                 MentalHealth, 
+                                 ChildSES, PC1:PC3, a:v.1.))
+
+correlations <- rcorr(as.matrix(forCorr_gng), type=c("spearman"))
+sig_corr <- correlations$P<.05
+corr_all<-correlations$r
+corr_all<-corr_all[c("Age", 
+                     "predMinusActual", "GreyMatter", "WhiteMatter",
+                     "Education_SES", "CognitiveStimulation", "Hobbies",
+                     "MentalHealth",  "ChildSES"), 
+                   c("PC1","PC2","PC3","v", "v.0.", "v.1.","a","t","z", "predMinusActual")]
+corr_all_p<-correlations$P
+corr_all_p<-corr_all_p[c("Age", 
+                         "predMinusActual", "GreyMatter","WhiteMatter", 
+                         "Education_SES", "CognitiveStimulation", "Hobbies",
+                         "MentalHealth", "ChildSES"), 
+                       c("PC1","PC2","PC3","v", "v.0.", "v.1.","a","t","z", "predMinusActual")]
+
+write.csv(corr_all, 'C:/Users/aleya/OneDrive/Documents/Tasks/plots/gng_corr_reg.csv')
+
+
+#### Checking White matter ####
+
+dvList<-c("PC1", "PC2", "PC3", "v", "v.0.", "v.1.","a","t","z")
+
+# convert ethnicity to numeric to regress this out
+GNG_survey$Ethnicity<-as.numeric(as.factor
+                                           (GNG_survey$Ethnicity))
+
+# scale other variables 
+GNG_survey[c("GenderScore", "Age", "Ethnicity",
+                       "predMinusActual", "GreyMatter", "WhiteMatter",
+                       "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                       "ChildSES")]<- 
+  lapply(GNG_survey[c("GenderScore", "Age", "Ethnicity", 
+                                "predMinusActual", "GreyMatter", "WhiteMatter",
+                                "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                                "ChildSES")], scale)
+
+
+gng_lm_models <- list()
+gng_html_model <- list()
+gng_vif_list<-list()
+
+for (m in 1:length(dvList)) {
+  
+  model<-lm(as.formula(paste(dvList[[m]],"~ GenderScore + Age + Ethnicity + predMinusActual+ GreyMatter + WhiteMatter + Education_SES + CognitiveStimulation + Hobbies + MentalHealth + ChildSES")), data=GNG_survey)
+  
+  gng_lm_models[[m]]<-model
+  
+  gng_html_model[[m]]<-tab_model(model, show.se = TRUE,
+                                 pred.labels = c("(Intercept)", 
+                                                 "Gender", "Age",
+                                                 "Ethnicity","BrainAge - ActualAge", 
+                                                 "GMV", 
+                                                 "WMV",
+                                                 "F1:SES & Cognitive Reserve",
+                                                 "F2:Cognitive & Physical Stimulation",
+                                                 "F3:Hobbies",
+                                                 "F4:Mental Health Symptoms",
+                                                 "F5:Childhood SES"))
+  
+  gng_vif_list[[m]]<-vif(gng_lm_models[[m]])
+  
+}
+
+dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
+
+# convert ethnicity to numeric to regress this out
+wcst_survey$Ethnicity<-as.numeric(as.factor
+                                            (wcst_survey$Ethnicity))
+
+
+# scale other variables 
+wcst_survey[c("GenderScore", "Age",
+                        "predMinusActual", "GreyMatter", "WhiteMatter", "Ethnicity",
+                        "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                        "ChildSES")]<- 
+  lapply(wcst_survey[c("GenderScore", "Age",
+                                 "predMinusActual", "GreyMatter", "WhiteMatter", "Ethnicity",
+                                 "Education_SES", "CognitiveStimulation", "Hobbies", "MentalHealth", 
+                                 "ChildSES")], scale)
+
+wcst_lm_models <- list()
+wcst_html_model <- list()
+wcst_vif_list<-list()
+
+for (m in 1:length(dvList)) {
+  
+  model<-lm(as.formula(paste(dvList[[m]],"~ GenderScore + Age + Ethnicity + predMinusActual+ GreyMatter + WhiteMatter + Education_SES + CognitiveStimulation + Hobbies +MentalHealth + ChildSES")), data=wcst_survey)
+  
+  wcst_lm_models[[m]]<-model
+  
+  wcst_html_model[[m]]<-tab_model(model, show.se = TRUE,
+                                  pred.labels = c("(Intercept)", 
+                                                  "Gender", "Age",
+                                                  "Ethnicity","BrainAge - ActualAge", 
+                                                  "GMV", "WMV","F1:SES & Cognitive Reserve",
+                                                  "F2:Cognitive & Physical Stimulation",
+                                                  "F3:Hobbies",
+                                                  "F4:Mental Health Symptoms",
+                                                  "F5:Childhood SES"))
+  # variance inflation factor to test for multi-collinearity
+  wcst_vif_list[[m]]<-vif(wcst_lm_models[[m]])
+  
+}
