@@ -13,6 +13,12 @@ library(ggcorrplot)
 library(ggpubr)
 library(car)
 library(Hmisc)
+library(PupillometryR)
+library(ggpp)
+library(ggdist)
+library(gghalves)
+library(cowplot)
+
 
 set.seed(123)
 
@@ -371,8 +377,8 @@ for (m in 1:7) {
 
 #Age and PCs
 
-WCSTdata_long <- gather(all_wcst, PC, PCScore, PC1:PC4, factor_key=TRUE)
-GNGdata_long <- gather(all_gng, PC, PCScore, PC1:PC3, factor_key=TRUE)
+WCSTdata_long <- gather(wcst_survey, PC, PCScore, PC1:PC4, factor_key=TRUE)
+GNGdata_long <- gather(GNG_survey, PC, PCScore, PC1:PC3, factor_key=TRUE)
 
 set_theme(base = theme_bw())
 
@@ -390,27 +396,87 @@ age_plot<-ggarrange(age_gng, age_wcst, nrow = 2, ncol = 1)
 # bar plot of profiles by late adult housing
 
 #gng
+GNGdata_long$LateAdulthood_HousingType[GNGdata_long$LateAdulthood_HousingType==1]<- "Middle-to-High Cost"
+GNGdata_long$LateAdulthood_HousingType[GNGdata_long$LateAdulthood_HousingType==0]<- "Low Cost"
 
-housing_gng<-ggbarplot(GNGdata_long, x ="LateAdulthood_HousingType", y = "PCScore", color = "PC",
-          add = c("mean_se"), position = position_dodge())
-
-housing_gng<-housing_gng + scale_x_discrete(labels=c('Middle-to-High Cost', 'Low Cost')) + 
-  ylab ("PC Score") + ggtitle ("iii. GnG Profiles by Housing Type")+
-  theme(
-    axis.title.x = element_blank()
+gng_summary <- GNGdata_long %>%
+  group_by(PC,LateAdulthood_HousingType) %>%
+  summarise(
+    sd = sd(PCScore, na.rm=TRUE),
+    mean = mean(PCScore, na.rm=TRUE),
+    se = sd/sqrt(n_distinct(subject_id))
   )
 
+
+housing_gng<-ggplot(GNGdata_long, aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC)) +
+  geom_flat_violin(aes(fill = PC),position = position_nudge(x = .1, y = 0), adjust = 1.5, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = LateAdulthood_HousingType, y = PCScore, colour = PC),position = position_jitter(width = .01), size = 3, shape = 20, alpha = 0.5)+
+  geom_boxplot(aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC), position = position_dodgenudge(width= 0.3,x=-.2), outlier.shape = NA, alpha = .5, width = .3, colour = "black") +
+  geom_line(data = gng_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), linetype = 3, position = position_nudge(x=0.1))+
+  geom_point(data = gng_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), shape = 18, position = position_nudge(x=0.1)) +
+  geom_errorbar(data = gng_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC, ymin = mean-se, ymax = mean+se), width = .05, position = position_nudge(x=0.1))+
+  #scale_colour_brewer(palette = "Dark2")+
+  #scale_fill_brewer(palette = "Dark2")+
+  labs(y = expression(paste ("PC Score")))+ 
+  scale_x_discrete(labels= c('Low Cost', 'Middle-to-High Cost'))+
+  labs(linetype = "PC", color = "PC")+
+  theme_half_open()+
+  theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15), 
+        axis.title.y = element_text(size = 15),
+        #panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(), 
+        axis.title.x=element_blank(), legend.position='none')+
+  ggtitle("iii. GnG Profiles by Housing Type")+
+  theme(plot.title = element_text(size = 13, face = "bold"))+
+  ggplot2::annotate("text", x = 1.6, y = 4, label = "**Low-Cost Housing ~ ???GnG-PC2", size=4)
+
+housing_gng
 
 #wcst
 
-housing_wcst<-ggbarplot(WCSTdata_long, x ="LateAdulthood_HousingType", y = "PCScore", color = "PC",
-                       add = c("mean_se"), position = position_dodge())
+WCSTdata_long$LateAdulthood_HousingType[WCSTdata_long$LateAdulthood_HousingType==1]<- "Middle-to-High Cost"
+WCSTdata_long$LateAdulthood_HousingType[WCSTdata_long$LateAdulthood_HousingType==0]<- "Low Cost"
 
-housing_wcst<-housing_wcst + scale_x_discrete(labels=c('Middle-to-High Cost', 'Low Cost')) + 
-  ylab ("PC Score") + ggtitle ("iv. WCST Profiles by Housing Type")+
-  theme(
-    axis.title.x = element_blank()
+
+wcst_summary <- WCSTdata_long %>%
+  group_by(PC,LateAdulthood_HousingType) %>%
+  summarise(
+    sd = sd(PCScore, na.rm=TRUE),
+    mean = mean(PCScore, na.rm=TRUE),
+    se = sd/sqrt(n_distinct(subject_id))
   )
+
+
+housing_wcst <- ggplot(WCSTdata_long, aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC)) +
+  geom_flat_violin(aes(fill = PC), position = position_nudge(x = .1, y = 0), adjust = 1.5, trim = FALSE, alpha = .5, colour = NA) +
+  geom_point(aes(x = LateAdulthood_HousingType, y = PCScore, colour = PC), position = position_jitter(width = .01), size = 3, shape = 20, alpha = 0.5) +
+  geom_boxplot(aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC), position = position_dodgenudge(width= 0.3,x=-.2), outlier.shape = NA, alpha = .5, width = .3, colour = "black") +
+  geom_line(data = wcst_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), linetype = 3, position = position_nudge(x = 0.1)) +
+  geom_point(data = wcst_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), shape = 18, position = position_nudge(x = 0.1)) +
+  geom_errorbar(data = wcst_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC, ymin = mean - se, ymax = mean + se), width = .05, position = position_nudge(x = 0.1)) +
+  labs(y = expression(paste("PC Score"))) + 
+  scale_x_discrete(labels = c('Low Cost', 'Middle-to-High Cost')) +
+  labs(linetype = "PC", color = "PC") +
+  theme_half_open() +
+  theme(axis.text = element_text(size = 15),
+        axis.title = element_text(size = 15), 
+        axis.title.y = element_text(size = 15),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(), 
+        axis.title.x = element_blank(), 
+        legend.position = 'none') +
+  ggtitle("iv. WCST Profiles by Housing Type") +
+  theme(plot.title = element_text(size = 13, face = "bold")) +
+  ggplot2::annotate("text", x = 1.5, y = 14, label = "**Low-Cost Housing ~ ???WCST-PC3", size = 4) +
+  ggplot2::annotate("text", x = 1.5, y = 12, label = "**Middle-to-High Cost Housing ~ ???WCST-PC1/PC2/PC4", size = 4)
+
+
+housing_wcst
+
 
 
 housing_plot<-ggarrange(housing_gng, housing_wcst, nrow = 2, ncol = 1)
@@ -418,7 +484,7 @@ housing_plot<-ggarrange(housing_gng, housing_wcst, nrow = 2, ncol = 1)
 demo_plot<-ggarrange(age_plot, housing_plot)
 
 
-tiff(file="C:/Users/aleya/OneDrive/Documents/Tasks/plots/demog_plot.tiff",width = 12, height = 10, units = "in", res = 300)
+tiff(file="C:/Users/aleya/OneDrive/Documents/Tasks/plots/demog_plot.tiff",width = 15, height = 10, units = "in", res = 300)
 demo_plot
 dev.off()
 
@@ -430,11 +496,11 @@ set_theme(base = theme_bw())
 
 age_gng<-ggplot(GNGdata_long, aes(x=Age, y=ParamScore, group=parameter, color = parameter)) +
   geom_smooth(method = lm)+
-  xlab("Age") + ylab("Parameter Value") + ggtitle("i. GnG Parameters by Age")+ labs(color=NULL)
+  xlab("Age") + ylab("Parameter Value") + ggtitle("A. GnG Parameters by Age")+ labs(color=NULL)
 
 age_wcst<-ggplot(WCSTdata_long, aes(x=Age, y=ParamScore, group=parameter, color = parameter)) +
   geom_smooth(method = lm)+
-  xlab("Age") + ylab("Parameter Value") + ggtitle("ii. WCST Parameters by Age")+  labs(color=NULL)
+  xlab("Age") + ylab("Parameter Value") + ggtitle("B. WCST Parameters by Age")+  labs(color=NULL)
 
 age_plot<-ggarrange(age_gng, age_wcst, nrow = 2, ncol = 1)
 
@@ -921,7 +987,7 @@ gng_regs_final<-ggarrange (gng_plot_mixed[[1]],
                       gng_plot_mixed[[2]],
                       gng_plot_mixed[[3]], ncol = 1, nrow = 3)
 
-gng_regs_final<-annotate_figure(gng_regs_final, top = text_grob("i.Go/No-Go Results", 
+gng_regs_final<-annotate_figure(gng_regs_final, top = text_grob("A.Go/No-Go Results", 
                                       color = "black", size = 14))
 
 
@@ -950,7 +1016,7 @@ wcst_regs_final<-ggarrange (wcst_plot_mixed[[1]],
                            wcst_plot_mixed[[4]],
                            ncol = 1, nrow = 4)
 
-wcst_regs_final<-annotate_figure(wcst_regs_final, top = text_grob("ii.WCST Results", 
+wcst_regs_final<-annotate_figure(wcst_regs_final, top = text_grob("B.WCST Results", 
                                                                 color = "black", size = 14))
 
 
