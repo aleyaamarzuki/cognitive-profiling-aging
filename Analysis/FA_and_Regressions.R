@@ -19,11 +19,11 @@ library(ggdist)
 library(gghalves)
 library(cowplot)
 
+# remove environment (optional)
+rm(list = ls())
 
 set.seed(123)
 
-# remove environment (optional)
-rm(list = ls())
 
 #### Read in survey data ####
 
@@ -300,6 +300,7 @@ for (m in 1:length(dvList)) {
   
 }
 
+
 #wcst
 
 dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
@@ -319,7 +320,7 @@ for (m in 1:length(dvList)) {
   
 }
 
-#### Corrected p-values for demographics ####
+#### Corrected p-values (FWER) for demographics ####
 
 IVWCSTPC_pvals<-list()
 IVWCSTparams_pvals<-list()
@@ -360,13 +361,13 @@ adj_p_gng_params<-list()
 
 for (m in 1:7) {
   
-  adj_p_wcst_PCs[[m]]<-p.adjust(IVWCSTPC_pvals[[m]], method="BH")
+  adj_p_wcst_PCs[[m]]<-p.adjust(IVWCSTPC_pvals[[m]], method="holm")
   
-  adj_p_wcst_params[[m]]<-p.adjust(IVWCSTparams_pvals[[m]], method="BH")
+  adj_p_wcst_params[[m]]<-p.adjust(IVWCSTparams_pvals[[m]], method="holm")
   
-  adj_p_gng_PCs[[m]]<-p.adjust(IVGNGPC_pvals[[m]], method="BH")
+  adj_p_gng_PCs[[m]]<-p.adjust(IVGNGPC_pvals[[m]], method="holm")
   
-  adj_p_gng_params[[m]]<-p.adjust(IVGNGparams_pvals[[m]], method="BH")
+  adj_p_gng_params[[m]]<-p.adjust(IVGNGparams_pvals[[m]], method="holm")
   
 }
 
@@ -384,11 +385,11 @@ set_theme(base = theme_bw())
 
 age_gng<-ggplot(GNGdata_long, aes(x=Age, y=PCScore, group=PC, color = PC)) +
   geom_smooth(method = lm)+
-  xlab("Age") + ylab("PC Score") + ggtitle("i. GnG Profiles by Age")+ labs(color=NULL)
+  xlab("Age") + ylab("PC Score") + ggtitle("A. GnG Profiles by Age")+ labs(color=NULL)
 
 age_wcst<-ggplot(WCSTdata_long, aes(x=Age, y=PCScore, group=PC, color = PC)) +
   geom_smooth(method = lm)+
-  xlab("Age") + ylab("PC Score") + ggtitle("ii. WCST Profiles by Age")+  labs(color=NULL)
+  xlab("Age") + ylab("PC Score") + ggtitle("B. WCST Profiles by Age")+  labs(color=NULL)
 
 age_plot<-ggarrange(age_gng, age_wcst, nrow = 2, ncol = 1)
 
@@ -410,7 +411,7 @@ gng_summary <- GNGdata_long %>%
 
 housing_gng<-ggplot(GNGdata_long, aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC)) +
   geom_flat_violin(aes(fill = PC),position = position_nudge(x = .1, y = 0), adjust = 1.5, trim = FALSE, alpha = .5, colour = NA)+
-  geom_point(aes(x = LateAdulthood_HousingType, y = PCScore, colour = PC),position = position_jitter(width = .01), size = 3, shape = 20, alpha = 0.5)+
+  #geom_point(aes(x = LateAdulthood_HousingType, y = PCScore, colour = PC),position = position_jitter(width = .01), size = 3, shape = 20, alpha = 0.5)+
   geom_boxplot(aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC), position = position_dodgenudge(width= 0.3,x=-.2), outlier.shape = NA, alpha = .5, width = .3, colour = "black") +
   geom_line(data = gng_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), linetype = 3, position = position_nudge(x=0.1))+
   geom_point(data = gng_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), shape = 18, position = position_nudge(x=0.1)) +
@@ -420,7 +421,7 @@ housing_gng<-ggplot(GNGdata_long, aes(x = LateAdulthood_HousingType, y = PCScore
   labs(y = expression(paste ("PC Score")))+ 
   scale_x_discrete(labels= c('Low Cost', 'Middle-to-High Cost'))+
   labs(linetype = "PC", color = "PC")+
-  theme_half_open()+
+  theme_bw()+
   theme(axis.text=element_text(size=15),
         axis.title=element_text(size=15), 
         axis.title.y = element_text(size = 15),
@@ -429,9 +430,9 @@ housing_gng<-ggplot(GNGdata_long, aes(x = LateAdulthood_HousingType, y = PCScore
         panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(), 
         axis.title.x=element_blank(), legend.position='none')+
-  ggtitle("iii. GnG Profiles by Housing Type")+
-  theme(plot.title = element_text(size = 13, face = "bold"))+
-  ggplot2::annotate("text", x = 1.6, y = 4, label = "**Low-Cost Housing ~ ???GnG-PC2", size=4)
+  ggtitle("C. GnG Profiles by Housing Type")+
+  theme(plot.title = element_text(size = 13))+
+  ggplot2::annotate("text", x = 1.6, y = 4, label = "**Low-Cost Housing ~ ↑GnG-PC2", size=4)
 
 housing_gng
 
@@ -452,7 +453,7 @@ wcst_summary <- WCSTdata_long %>%
 
 housing_wcst <- ggplot(WCSTdata_long, aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC)) +
   geom_flat_violin(aes(fill = PC), position = position_nudge(x = .1, y = 0), adjust = 1.5, trim = FALSE, alpha = .5, colour = NA) +
-  geom_point(aes(x = LateAdulthood_HousingType, y = PCScore, colour = PC), position = position_jitter(width = .01), size = 3, shape = 20, alpha = 0.5) +
+  #geom_point(aes(x = LateAdulthood_HousingType, y = PCScore, colour = PC), position = position_jitter(width = .01), size = 3, shape = 20, alpha = 0.5) +
   geom_boxplot(aes(x = LateAdulthood_HousingType, y = PCScore, fill = PC), position = position_dodgenudge(width= 0.3,x=-.2), outlier.shape = NA, alpha = .5, width = .3, colour = "black") +
   geom_line(data = wcst_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), linetype = 3, position = position_nudge(x = 0.1)) +
   geom_point(data = wcst_summary, aes(x = LateAdulthood_HousingType, y = mean, group = PC, colour = PC), shape = 18, position = position_nudge(x = 0.1)) +
@@ -460,7 +461,7 @@ housing_wcst <- ggplot(WCSTdata_long, aes(x = LateAdulthood_HousingType, y = PCS
   labs(y = expression(paste("PC Score"))) + 
   scale_x_discrete(labels = c('Low Cost', 'Middle-to-High Cost')) +
   labs(linetype = "PC", color = "PC") +
-  theme_half_open() +
+  theme_bw() +
   theme(axis.text = element_text(size = 15),
         axis.title = element_text(size = 15), 
         axis.title.y = element_text(size = 15),
@@ -469,10 +470,10 @@ housing_wcst <- ggplot(WCSTdata_long, aes(x = LateAdulthood_HousingType, y = PCS
         panel.grid.major.x = element_blank(), 
         axis.title.x = element_blank(), 
         legend.position = 'none') +
-  ggtitle("iv. WCST Profiles by Housing Type") +
-  theme(plot.title = element_text(size = 13, face = "bold")) +
-  ggplot2::annotate("text", x = 1.5, y = 14, label = "**Low-Cost Housing ~ ???WCST-PC3", size = 4) +
-  ggplot2::annotate("text", x = 1.5, y = 12, label = "**Middle-to-High Cost Housing ~ ???WCST-PC1/PC2/PC4", size = 4)
+  ggtitle("D. WCST Profiles by Housing Type") +
+  theme(plot.title = element_text(size = 13)) +
+  ggplot2::annotate("text", x = 1.5, y = 14, label = "**Low-Cost Housing ~ ↑WCST-PC3", size = 4) +
+  ggplot2::annotate("text", x = 1.5, y = 12, label = "**Middle-to-High Cost Housing ~ ↑WCST-PC1/PC2/PC4", size = 4)
 
 
 housing_wcst
@@ -706,17 +707,17 @@ adj_p_gng_params<-list()
 
 for (m in 1:7) {
   
-adj_p_wcst_PCs[[m]]<-p.adjust(IVWCSTPC_pvals[[m]], method="BH")
+adj_p_wcst_PCs[[m]]<-p.adjust(IVWCSTPC_pvals[[m]], method="holm")
 
-adj_p_wcst_params[[m]]<-p.adjust(IVWCSTparams_pvals[[m]], method="BH")
+adj_p_wcst_params[[m]]<-p.adjust(IVWCSTparams_pvals[[m]], method="holm")
 
-adj_p_gng_PCs[[m]]<-p.adjust(IVGNGPC_pvals[[m]], method="BH")
+adj_p_gng_PCs[[m]]<-p.adjust(IVGNGPC_pvals[[m]], method="holm")
 
-adj_p_gng_params[[m]]<-p.adjust( IVGNGparams_pvals[[m]], method="BH")
+adj_p_gng_params[[m]]<-p.adjust( IVGNGparams_pvals[[m]], method="holm")
   
 }
 
-# order of IVs in lists: predMinusActual, GMV, F1, F2, F3, F4
+# order of IVs in lists: predMinusActual, GMV, F1, F2, F3, F4, F5
 
 
 # the factors show moderately strong correlations between each other 
@@ -1080,6 +1081,7 @@ write.csv(corr_all, 'C:/Users/aleya/OneDrive/Documents/Tasks/plots/gng_corr_reg.
 
 #### Checking White matter ####
 
+###### GnG #####
 dvList<-c("PC1", "PC2", "PC3", "v", "v.0.", "v.1.","a","t","z")
 
 # convert ethnicity to numeric to regress this out
@@ -1123,6 +1125,11 @@ for (m in 1:length(dvList)) {
   
 }
 
+# do p-value adjustment for GNG-PC2
+p.adjust(c(0.739,0.328, 0.014), method="holm")
+
+###### WCST #####
+
 dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
 
 # convert ethnicity to numeric to regress this out
@@ -1163,3 +1170,334 @@ for (m in 1:length(dvList)) {
   wcst_vif_list[[m]]<-vif(wcst_lm_models[[m]])
   
 }
+
+
+#### Mediation ####
+# read in .csv from directory
+roi_vol<-read.table("C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/roi_vol.csv",header=TRUE,sep=",")
+
+# match wcst data to roi_vol
+colnames(roi_vol)[1]<-"subject_id"
+
+roi_matching_wcst <-semi_join(roi_vol,wcst_survey, by=("subject_id"))
+
+WCST_survey_roi<- merge (roi_matching_wcst, wcst_survey, by = 'subject_id')
+
+
+# match gng data to roi_vol
+roi_matching_gng <-semi_join(roi_vol,GNG_survey, by=("subject_id"))
+
+GNG_survey_roi<- merge (roi_matching_gng, GNG_survey, by = 'subject_id')
+
+#run mediations
+
+library(mediation)
+
+##### WCST PC3 #####
+
+med_List<-c("GreyMatter", "WhiteMatter", "predMinusActual", "Amygdala", "Cerebellum", "DLPFC", "PFC")
+
+wcst_mediations_PC3 <- list()
+
+for (m in 1:length(med_List)) {
+  
+  fitM <- lm(as.formula(paste(med_List[[m]],"~ Education_SES")), data=WCST_survey_roi) 
+  # Construct the formula for the fitY model
+  formula_Y <- as.formula(paste("PC3 ~", paste(c(med_List[[m]], "Education_SES"), collapse = " + ")))
+  
+  fitY <- lm(formula_Y, data=WCST_survey_roi)
+  
+  fitMed <- mediation::mediate(fitM, fitY, treat="Education_SES", mediator=med_List[[m]])
+  
+  wcst_mediations_PC3[[m]]<-fitMed
+  
+}
+
+summary(wcst_mediations_PC3[[5]])
+
+
+
+##### WCST PC1 #####
+
+med_List<-c("GreyMatter", "WhiteMatter", "predMinusActual", "Amygdala", "Cerebellum", "DLPFC", "PFC")
+
+wcst_mediations_PC1 <- list()
+
+for (m in 1:length(med_List)) {
+  
+  fitM <- lm(as.formula(paste(med_List[[m]],"~ Education_SES")), data=WCST_survey_roi) 
+  # Construct the formula for the fitY model
+  formula_Y <- as.formula(paste("PC1 ~", paste(c(med_List[[m]], "Education_SES"), collapse = " + ")))
+  
+  fitY <- lm(formula_Y, data=WCST_survey_roi)
+  
+  fitMed <- mediation::mediate(fitM, fitY, treat="Education_SES", mediator=med_List[[m]])
+  
+  wcst_mediations_PC1[[m]]<-fitMed
+  
+}
+
+summary(wcst_mediations_PC1[[1]])
+
+
+##### GnG PC3 #####
+
+med_List<-c("GreyMatter", "WhiteMatter", "predMinusActual", "Amygdala", "Cerebellum", "DLPFC", "PFC", "IFG", "Insula", "SuppMotor")
+
+gng_mediations_PC2 <- list()
+
+for (m in 1:length(med_List)) {
+  
+  fitM <- lm(as.formula(paste(med_List[[m]],"~ Education_SES")), data=GNG_survey_roi) 
+  # Construct the formula for the fitY model
+  formula_Y <- as.formula(paste("PC2 ~", paste(c(med_List[[m]], "Education_SES"), collapse = " + ")))
+  
+  fitY <- lm(formula_Y, data=GNG_survey_roi)
+  
+  fitMed <- mediation::mediate(fitM, fitY, treat="Education_SES", mediator=med_List[[m]])
+  
+  gng_mediations_PC2[[m]]<-fitMed
+  
+}
+
+summary(gng_mediations_PC2[[3]])
+
+
+##### GnG z #####
+
+med_List<-c("GreyMatter", "WhiteMatter", "predMinusActual", "Amygdala", "Cerebellum", "DLPFC", "PFC", "IFG", "Insula", "SuppMotor")
+
+gng_mediations_z <- list()
+
+for (m in 1:length(med_List)) {
+  
+  fitM <- lm(as.formula(paste(med_List[[m]],"~ Education_SES")), data=GNG_survey_roi) 
+  # Construct the formula for the fitY model
+  formula_Y <- as.formula(paste("z ~", paste(c(med_List[[m]], "Education_SES"), collapse = " + ")))
+  
+  fitY <- lm(formula_Y, data=GNG_survey_roi)
+  
+  fitMed <- mediation::mediate(fitM, fitY, treat="Education_SES", mediator=med_List[[m]])
+  
+  gng_mediations_z[[m]]<-fitMed
+  
+}
+
+summary(gng_mediations_z[[5]])
+
+
+
+##### Create forest plots for mediation #####
+
+##### Function for extracting ACME and confidence intervals from each mediation result #####
+
+mediationData_forPlotting<-function(file) {mediation_results <- lapply(file, function(x) {
+  data.frame(
+    Mediator = x$mediator,
+    ACME = x$d0,
+    LowerCI = x$d0.ci[1],
+    UpperCI = x$d0.ci[2]
+  )
+})
+
+# Combine all results into a single data frame
+mediation_df <- do.call(rbind, mediation_results)
+
+# Determine significance based on whether the confidence interval includes zero
+mediation_df <- mediation_df %>%
+ # mutate(Significant = ifelse(LowerCI != 0 | UpperCI != 0, "Significant", "Not Significant"))
+  mutate(Significant = ifelse(LowerCI > 0 | UpperCI < 0, "Significant", "Not Significant"))
+
+return (mediation_df)
+} # end of function
+
+##### WCST PC1 #####
+
+mediation_df<-mediationData_forPlotting(wcst_mediations_PC1)
+# Create the forest plot
+med1<-ggplot(mediation_df, aes(x = ACME, y = Mediator, color = Significant)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = LowerCI, xmax = UpperCI), height = 0.2) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  scale_color_manual(values = c("Significant" = "darkgreen", "Not Significant" = "black")) +
+  labs(title = "A. Mediators on SES & Cognitive Reserve -> WCST-PC1 Relationship",
+       x = "",
+       y = "",
+       color = "Significance") +
+  theme_bw()+
+  guides(color = "none")+
+  theme(plot.title = element_text(size = 10)) 
+
+
+
+##### WCST PC3 #####
+
+mediation_df<-mediationData_forPlotting(wcst_mediations_PC3)
+# Create the forest plot
+med2<-ggplot(mediation_df, aes(x = ACME, y = Mediator, color = Significant)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = LowerCI, xmax = UpperCI), height = 0.2) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  scale_color_manual(values = c("Significant" = "red", "Not Significant" = "black")) +
+  labs(title = "B. Mediators on SES & Cognitive Reserve -> WCST-PC3 Relationship",
+       x = "",
+       y = "",
+       color = "Significance") +
+  theme_bw()+
+  guides(color = "none")+
+  theme(plot.title = element_text(size = 10)) 
+
+
+##### GnG PC2 #####
+
+mediation_df<-mediationData_forPlotting(gng_mediations_PC2)
+# Create the forest plot
+med3<-ggplot(mediation_df, aes(x = ACME, y = Mediator, color = Significant)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = LowerCI, xmax = UpperCI), height = 0.2) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  scale_color_manual(values = c("Significant" = "red", "Not Significant" = "black")) +
+  labs(title = "C. Mediators on SES & Cognitive Reserve -> GNG-PC2 Relationship",
+       x = "ACME (Average Causal Mediation Effect)",
+       y = "",
+       color = "Significance") +
+  theme_bw()+
+  guides(color = "none")+
+  theme(plot.title = element_text(size = 10),
+        axis.title.x = element_text(size = 10)) 
+
+
+##### GnG z #####
+
+mediation_df<-mediationData_forPlotting(gng_mediations_z)
+# Create the forest plot
+med4<-ggplot(mediation_df, aes(x = ACME, y = Mediator, color = Significant)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = LowerCI, xmax = UpperCI), height = 0.2) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  scale_color_manual(values = c("Significant" = "darkgreen", "Not Significant" = "black")) +
+  labs(title = "D. Mediators on SES & Cognitive Reserve -> Start. Point Parameter (z)",
+       x = "ACME (Average Causal Mediation Effect)",
+       y = "",
+       color = "Significance") +
+  theme_bw()+
+  guides(color = "none")+
+  theme(plot.title = element_text(size = 10),
+        axis.title.x = element_text(size = 10)) 
+
+
+medPlot<-ggarrange(med1, med2, med3, med4, nrow = 2, ncol = 2)
+
+tiff(file="C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/npj aging/Review/med_plot.tiff",width = 15, height = 10, units = "in", res = 300)
+medPlot
+dev.off()
+
+
+#### Checking regressions in sample with all data ####
+
+sub_ids_intersect<-intersect(GNG_survey$subject_id, wcst_survey$subject_id)
+gng_match_wcst<-GNG_survey[GNG_survey$subject_id %in% sub_ids_intersect,]
+wcst_match_gng<-wcst_survey[wcst_survey$subject_id %in% sub_ids_intersect,]
+
+#gng
+dvList<-c("PC1", "PC2", "PC3", "v", "v.0.", "v.1.","a","t","z")
+
+
+gng_lm_models <- list()
+gng_html_model <- list()
+gng_vif_list<-list()
+
+
+for (m in 1:length(dvList)) {
+  
+  model<-lm(as.formula(paste(dvList[[m]],"~ GenderScore + Age + Ethnicity + predMinusActual+ GreyMatter + Education_SES + CognitiveStimulation + Hobbies + MentalHealth + ChildSES")), data=gng_match_wcst)
+  
+  gng_lm_models[[m]]<-model
+  
+  gng_html_model[[m]]<-tab_model(model, show.se = TRUE,
+                                 pred.labels = c("(Intercept)", 
+                                                 "Gender", "Age",
+                                                 "Ethnicity","BrainAge - ActualAge", 
+                                                 "GMV", 
+                                                 "F1:SES & Cognitive Reserve",
+                                                 "F2:Cognitive & Physical Stimulation",
+                                                 "F3:Hobbies",
+                                                 "F4:Mental Health Symptoms",
+                                                 "F5:Childhood SES"))
+  
+  gng_vif_list[[m]]<-vif(gng_lm_models[[m]])
+  
+}
+
+set_theme(base = theme_bw())
+
+##### plot regression results #####
+dvList<-c("PC1: Well-Performing", "PC2: Slow Responding", 
+          "PC3: Random Responding","v", "v.0.", "v.1.","a","t","z")
+
+pc_reg_gng<-list()
+
+for (j in 1:length(dvList)) {
+  gng_lm<-plot_model(gng_lm_models[[j]], title = dvList[[j]], rm.terms = c("GenderScore", "Age", "Ethnicity"),
+                     show.values = TRUE, show.p = FALSE, value.offset = .3)+ 
+    scale_x_discrete(labels=c("F5:Childhood SES","F4:Mental Health Symptoms","F3:Hobbies","F2:Cognitive & Physical Stimulation",
+                              "F1:SES & Cognitive Reserve",
+                              "GMV", "BrainAge - ActualAge"))
+  
+  
+  
+  pc_reg_gng[[j]]<-annotate_figure(gng_lm, top = text_grob("GLM", 
+                                                           color = "black", face = "bold", size = 14)) 
+}
+
+
+dvList<-c("PC1", "PC2", "PC3", "PC4", "r", "p", "d", "f")
+
+
+wcst_lm_models <- list()
+wcst_html_model <- list()
+wcst_vif_list<-list()
+
+for (m in 1:length(dvList)) {
+  
+  model<-lm(as.formula(paste(dvList[[m]],"~ GenderScore + Age + Ethnicity + predMinusActual+ GreyMatter + Education_SES + CognitiveStimulation + Hobbies +MentalHealth + ChildSES")), data=wcst_match_gng)
+  
+  wcst_lm_models[[m]]<-model
+  
+  wcst_html_model[[m]]<-tab_model(model, show.se = TRUE,
+                                  pred.labels = c("(Intercept)", 
+                                                  "Gender", "Age",
+                                                  "Ethnicity","BrainAge - ActualAge", 
+                                                  "GMV", "F1:SES & Cognitive Reserve",
+                                                  "F2:Cognitive & Physical Stimulation",
+                                                  "F3:Hobbies",
+                                                  "F4:Mental Health Symptoms",
+                                                  "F5:Childhood SES"))
+  # variance inflation factor to test for multi-collinearity
+  wcst_vif_list[[m]]<-vif(wcst_lm_models[[m]])
+  
+}
+
+#### plot regression results #####
+
+set_theme(base = theme_bw())
+
+dvList<-c("PC1: Well-Performing", "PC2: Perseverative", "PC3: Poor Performing + Rigid Focusing", 
+          "PC4: Slow Initial Learning", "r", "p", "d", "f")
+
+pc_reg_wcst<-list()
+
+for (j in 1:length(dvList)) {
+  wcst_lm<-plot_model(wcst_lm_models[[j]], title = dvList[[j]], rm.terms = c("GenderScore", "Age", "Ethnicity"),
+                      show.values = TRUE, show.p = FALSE, value.offset = .3)+ 
+    scale_x_discrete(labels=c("F5:Childhood SES","F4:Mental Health Symptoms","F3:Hobbies","F2:Cognitive & Physical Stimulation",
+                              "F1:SES & Cognitive Reserve",
+                              "GMV", "BrainAge - ActualAge"))
+  
+  pc_reg_wcst[[j]]<-annotate_figure(wcst_lm, top = text_grob("GLM", 
+                                                             color = "black", face = "bold", size = 14)) 
+}
+
+
+ggarrange(pc_reg_wcst[[1]], pc_reg_wcst[[2]], pc_reg_wcst[[3]], pc_reg_wcst[[4]])
+
