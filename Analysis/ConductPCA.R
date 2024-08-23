@@ -47,9 +47,9 @@ library(corrplot)
 plot_dir<-'C:/Users/aleya/OneDrive/Documents/Tasks/plots/'
 
 #### read in files ####
-
+getwd()
 # read in wcst 
-WCSTonly<-read.table('C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/forWCSTMRIAnalysis.csv', header=TRUE,sep=",")
+WCSTonly<-read.table('./forWCSTMRIAnalysis.csv', header=TRUE,sep=",")
 
 # read in gng 
 GNGonly<-read.table('C:/Users/aleya/OneDrive/Desktop/Cog Modelling Ageing Project/CleanDataFiles/forGnGMRIAnalysis.csv', header=TRUE,sep=",")
@@ -61,7 +61,7 @@ wcst_cog<-WCSTonly %>%
 GNGonly2<-GNGonly %>%  filter(subject_id!=628)
 
 gng_cog<-GNGonly2 %>%
-  summarise_at(vars(go_errors:v_1_),funs(mean, sd, range), na.rm = TRUE)
+  summarise_at(vars(go_errors:v.1.),funs(mean, sd, range), na.rm = TRUE)
 
 
 #### PCA ####
@@ -73,7 +73,7 @@ gng_cog<-GNGonly2 %>%
 # remove outlier
 GNGonly2<-GNGonly %>%  filter(subject_id!=628)
 
-gng_K<-subset(GNGonly2, select = c(go_errors:v_1_))
+gng_K<-subset(GNGonly2, select = c(go_errors:v.1.))
 
 gng_K<-subset(gng_K, select = -c(dc,v))
 
@@ -168,8 +168,8 @@ gng_pca_plot[[k]]<-ggplot(gng_plot,
 
 gng_pca_merged<-ggarrange(gng_pca_plot[[1]], gng_pca_plot[[2]], gng_pca_plot[[3]])
 
-gng_pca_merged<-annotate_figure(gng_pca_merged, top = text_grob("i. Go/No-Go", 
-                                         color = "black", face = "bold", size = 14))+
+gng_pca_merged<-annotate_figure(gng_pca_merged, top = text_grob("A. Go/No-Go", 
+                                         color = "black", size = 14))+
   theme(panel.border = element_rect(color = "black", 
                                     fill = NA))
 
@@ -276,8 +276,8 @@ for (k in 1:length(dvList)) {
 
 wcst_pca_merged<-ggarrange(wcst_pca_plot[[1]], wcst_pca_plot[[2]], wcst_pca_plot[[3]], wcst_pca_plot[[4]])
 
-wcst_pca_merged<-annotate_figure(wcst_pca_merged, top = text_grob("ii. WCST", 
-                                                                color = "black", face = "bold", size = 14))+
+wcst_pca_merged<-annotate_figure(wcst_pca_merged, top = text_grob("B. WCST", 
+                                                                color = "black", size = 14))+
   theme(panel.border = element_rect(color = "black", 
                                     fill = NA))
 
